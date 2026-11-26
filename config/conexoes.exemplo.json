@@ -1,0 +1,22 @@
+{
+  "source": {
+    "user": "leitor_origem",
+    "host": "oracle-origem.exemplo",
+    "port": 1521,
+    "service_name": "ORIGEM",
+    "schema": "ESQUEMA_ORIGEM"
+  },
+  "target": {
+    "user": "leitor_destino",
+    "host": "oracle-destino.exemplo",
+    "port": 1521,
+    "service_name": "DESTINO",
+    "schema": "ESQUEMA_DESTINO"
+  },
+  "oracle_mode": "thin",
+  "workbook": "tabelas.xlsx",
+  "workbook_sheet": "Tabelas",
+  "output_directory": "../saida",
+  "commit_every_rows": 0,
+  "fetch_batch_size": 500
+}

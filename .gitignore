@@ -1,0 +1,4 @@
+target/
+saida/
+config/conexoes.json
+config/tabelas.xlsx
