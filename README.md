@@ -20,7 +20,7 @@ Na aba `Tabelas` da planilha, use uma linha por tabela. Preencha `habilitada` co
 java -jar target/data-comparator-0.1.0.jar --config config/conexoes.json
 ```
 
-O Maven empacota as dependências no JAR. O Java pede as duas senhas com digitação oculta.
+O Maven empacota as dependências no JAR. O Java pede as credenciais com digitação oculta.
 
 ## Dependências e conexão
 
@@ -30,7 +30,13 @@ O Maven empacota as dependências no JAR. O Java pede as duas senhas com digita�
 | `org.apache.poi:poi-ooxml` | Leitura do Excel |
 | `com.fasterxml.jackson.core:jackson-databind` | Configuração JSON e chaves nos logs |
 
-O driver configurado tem suporte documentado para Oracle Database 19c, 21c e 26ai. No modo padrão `thin`, o cliente Oracle não é necessário. Se usar um alias TNS, informe `oracle_config_dir` no JSON. Se o ambiente exigir o modo `thick`, instale as bibliotecas OCI para Linux na distribuição WSL e configure o caminho delas no ambiente do processo Java. Para alias TNS em OCI, configure `TNS_ADMIN`.
+O driver configurado tem suporte documentado para Oracle Database 19c, 21c e 26ai. No modo padrão `thin`, o cliente Oracle não é necessário. Se usar um alias TNS, informe `oracle_config_dir` no JSON. Um caminho relativo aponta para uma pasta a partir do diretório do JSON.
+
+### Autenticação RADIUS
+
+Defina `"oracle_authentication": "radius"` no JSON. Em modo Thin, o programa configura a propriedade JDBC `oracle.net.authentication_services=(RADIUS)` nas duas conexões. Digite a senha ou o código RADIUS quando solicitado. O fluxo aceita uma credencial por conexão e não implementa uma etapa adicional de desafio e resposta.
+
+Se o ambiente exigir `"oracle_mode": "thick"`, instale as bibliotecas OCI para Linux na distribuição WSL e configure o caminho delas no ambiente do processo Java. Aponte `TNS_ADMIN` para o diretório cujo `sqlnet.ora` define `SQLNET.AUTHENTICATION_SERVICES = (RADIUS)`. Para uma conta Oracle com senha convencional, use `"oracle_authentication": "password"` ou omita o campo e use o perfil Oracle Net correspondente.
 
 ## Saída
 

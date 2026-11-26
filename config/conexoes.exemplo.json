@@ -13,7 +13,7 @@
     "service_name": "DESTINO",
     "schema": "ESQUEMA_DESTINO"
   },
-  "oracle_mode": "thin",
+  "oracle_authentication": "radius",
   "workbook": "tabelas.xlsx",
   "workbook_sheet": "Tabelas",
   "output_directory": "../saida",

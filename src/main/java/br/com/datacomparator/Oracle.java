@@ -67,7 +67,10 @@ final class Oracle {
 
     static Connection connect(Config config, Config.Endpoint endpoint, Console console, String label)
             throws SQLException {
-        char[] password = console.readPassword("Senha do %s (%s): ", label, endpoint.user());
+        boolean radius = config.oracleAuthentication().equals("radius");
+        String credential = radius ? "Senha ou código RADIUS" : "Senha";
+        char[] password = console.readPassword("%s da conexão de %s (%s): ",
+                credential, label, endpoint.user());
         if (password == null) {
             throw new IllegalArgumentException("Leitura da senha interrompida.");
         }
@@ -79,6 +82,9 @@ final class Oracle {
                 credentials.setProperty("oracle.net.tns_admin", config.oracleConfigDir());
             }
             String mode = config.oracleMode().equals("thick") ? "oci" : "thin";
+            if (radius && mode.equals("thin")) {
+                credentials.setProperty("oracle.net.authentication_services", "(RADIUS)");
+            }
             return DriverManager.getConnection("jdbc:oracle:" + mode + ":@" + endpoint.dsn(),
                     credentials);
         } finally {

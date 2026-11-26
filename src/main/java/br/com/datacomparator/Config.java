@@ -20,7 +20,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 record Config(Endpoint source, Endpoint target, List<Table> tables, Path output,
-              int commitEvery, int batchSize, String oracleMode, String oracleConfigDir) {
+              int commitEvery, int batchSize, String oracleMode, String oracleAuthentication,
+              String oracleConfigDir) {
 
     record Endpoint(String user, String schema, String dsn) {}
     record Table(String name, List<String> keys, boolean enabled) {}
@@ -38,13 +39,21 @@ record Config(Endpoint source, Endpoint target, List<Table> tables, Path output,
         if (!Set.of("thin", "thick").contains(mode)) {
             throw new IllegalArgumentException("oracle_mode deve ser thin ou thick.");
         }
+        String authentication = text(root, "oracle_authentication", "password").toLowerCase(Locale.ROOT);
+        if (!Set.of("password", "radius").contains(authentication)) {
+            throw new IllegalArgumentException("oracle_authentication deve ser password ou radius.");
+        }
+        String configDir = text(root, "oracle_config_dir", "");
+        if (!configDir.isEmpty()) {
+            configDir = base.resolve(configDir).normalize().toString();
+        }
         Path workbook = base.resolve(text(root, "workbook", null));
         return new Config(endpoint(root.path("source")), endpoint(root.path("target")),
                 tables(workbook, text(root, "workbook_sheet", "Tabelas")),
                 base.resolve(text(root, "output_directory", "saida")),
                 integer(root, "commit_every_rows", 0, 0),
                 integer(root, "fetch_batch_size", 500, 1),
-                mode, text(root, "oracle_config_dir", ""));
+                mode, authentication, configDir);
     }
 
     private static Endpoint endpoint(JsonNode node) {
