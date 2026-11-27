@@ -43,17 +43,15 @@ final class SqlScript implements AutoCloseable {
             } else {
                 sqlValue = expression(field);
             }
-            assignments.add(new Assignment(Oracle.quote(field.column().name()), sqlValue));
+            assignments.add(new Assignment(field.column().name(), sqlValue));
         }
 
-        boolean block = !lobs.isEmpty() || keys != null;
-        if (!lobs.isEmpty()) {
+        boolean block = !lobs.isEmpty();
+        if (block) {
             output.write("DECLARE\n");
             for (Lob lob : lobs) {
                 output.write("  " + lob.variable() + " CLOB;\n");
             }
-        }
-        if (block) {
             output.write("BEGIN\n");
         }
         for (Lob lob : lobs) {
@@ -62,24 +60,22 @@ final class SqlScript implements AutoCloseable {
                     output.write("  DBMS_LOB.APPEND(" + lob.variable() + ", TO_CLOB(" + part + "));\n"));
         }
 
+        String indent = block ? "  " : "";
         if (keys == null) {
             var names = assignments.stream().map(Assignment::name).toList();
             var expressions = assignments.stream().map(Assignment::expression).toList();
-            output.write("  INSERT INTO " + table + " (\n    " + String.join(",\n    ", names)
+            output.write(indent + "INSERT INTO " + table + " (\n    " + String.join(",\n    ", names)
                     + "\n  ) VALUES (\n    " + String.join(",\n    ", expressions) + "\n  );\n");
         } else {
             var changes = assignments.stream().map(item -> item.name() + " = " + item.expression()).toList();
             var predicates = new ArrayList<String>();
             for (Field key : keys) {
-                String name = Oracle.quote(key.column().name());
+                String name = key.column().name();
                 predicates.add(key.value() == null
                         ? name + " IS NULL" : name + " = (" + expression(key) + ")");
             }
-            output.write("  UPDATE " + table + "\n    SET " + String.join(",\n    ", changes)
-                    + "\n    WHERE " + String.join("\n    AND ", predicates) + ";\n"
-                    + "  IF SQL%ROWCOUNT <> 1 THEN\n"
-                    + "    RAISE_APPLICATION_ERROR(-20001, 'UPDATE esperava uma linha.');\n"
-                    + "  END IF;\n");
+            output.write(indent + "UPDATE " + table + "\n    SET " + String.join(",\n    ", changes)
+                    + "\n    WHERE " + String.join("\n    AND ", predicates) + ";\n");
         }
         for (Lob lob : lobs) {
             output.write("  DBMS_LOB.FREETEMPORARY(" + lob.variable() + ");\n");

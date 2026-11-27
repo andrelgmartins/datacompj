@@ -57,12 +57,8 @@ final class Oracle {
         void accept(Object[] row) throws IOException;
     }
 
-    static String quote(String name) {
-        return "\"" + name.replace("\"", "\"\"") + "\"";
-    }
-
     static String qualified(String schema, String table) {
-        return quote(schema) + "." + quote(table);
+        return schema + "." + table;
     }
 
     static Connection connect(Config config, Config.Endpoint endpoint, Console console, String label)
@@ -147,6 +143,10 @@ final class Oracle {
             if (other == null) {
                 throw new IllegalArgumentException("Coluna ausente no destino: " + column.name());
             }
+            if (!Config.isUnquotedIdentifier(column.name())) {
+                throw new IllegalArgumentException(
+                        "Nome de coluna incompatível com SQL sem aspas: " + column.name());
+            }
             if (!column.type().equals(other.type()) || !SUPPORTED_TYPES.contains(column.type())) {
                 throw new IllegalArgumentException("Tipos incompatíveis ou sem suporte em %s: %s → %s."
                         .formatted(column.name(), column.type(), other.type()));
@@ -214,7 +214,7 @@ final class Oracle {
     }
 
     private static String selectExpression(Column column) {
-        String name = quote(column.name());
+        String name = column.name();
         return switch (column.type()) {
             case "DATE" -> "TO_CHAR(" + name + ", '" + DATE_FORMAT + "')";
             case "TIMESTAMP" -> "TO_CHAR(" + name + ", '" + TIMESTAMP_FORMAT + "')";

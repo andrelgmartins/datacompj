@@ -155,10 +155,14 @@ record Config(Endpoint source, Endpoint target, List<Table> tables, Path output,
 
     private static String identifier(String input) {
         String name = input.strip().toUpperCase(Locale.ROOT);
-        if (!IDENTIFIER.matcher(name).matches()) {
+        if (!isUnquotedIdentifier(name)) {
             throw new IllegalArgumentException("Identificador Oracle inválido: " + input);
         }
         return name;
+    }
+
+    static boolean isUnquotedIdentifier(String name) {
+        return IDENTIFIER.matcher(name).matches();
     }
 
     private static String text(JsonNode node, String field, String fallback) {

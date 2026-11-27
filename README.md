@@ -43,6 +43,7 @@ Se o ambiente exigir `"oracle_mode": "thick"`, instale as bibliotecas OCI para L
 - `SUMARIO.csv` contém os horários de início e término, duração, contagens e status por tabela.
 - `TABELA__LOG__DATA.csv` identifica todas as chaves da tabela e indica `INSERT`, `UPDATE`, `SEM_ALTERACAO` ou `SOMENTE_NO_DESTINO`. Para updates, registra as colunas diferentes.
 - Os arquivos `TABELA__INSERT__DATA.SQL` e `TABELA__UPDATE__DATA.SQL` só são criados quando há DML para aquela operação. Com `commit_every_rows: 0`, o arquivo sai sem commits. Um intervalo positivo se aplica a cada arquivo e inclui o lote restante.
+- Os scripts usam nomes de esquemas, tabelas e colunas sem aspas. Cada update é emitido como SQL direto. Quando é necessário montar um CLOB com conteúdo, o comando fica dentro de um bloco PL/SQL.
 - A tabela do destino é indexada em memória. Os CLOBs são comparados pelo conteúdo e preservam a distinção entre vazio e nulo. O volume dos CLOBs e a largura das linhas influenciam o uso de memória nas maiores tabelas.
 
 ## Aplicar os scripts
