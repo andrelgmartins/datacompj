@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.usermodel.XSSFCell;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,7 +26,13 @@ record Config(Endpoint source, Endpoint target, List<Table> tables, Path output,
               String oracleConfigDir) {
 
     record Endpoint(String user, String schema, String dsn) {}
-    record Table(String name, List<String> keys, boolean enabled) {}
+    record Filter(String column, String operator, String value) {}
+    record Table(String name, List<String> keys, boolean enabled, List<Filter> filters,
+                 List<String> guards) {}
+
+    private static final List<String> FILTER_SUFFIXES = List.of("maior", "menor", "igual");
+    private static final List<String> FILTER_OPERATORS = List.of(">", "<", "=");
+    private static final String GUARD_COLUMN = "colunas_conferir_destino";
 
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Z][A-Z0-9_$#]{0,127}");
     static final ObjectMapper JSON = new ObjectMapper();
@@ -121,7 +129,27 @@ record Config(Endpoint source, Endpoint target, List<Table> tables, Path output,
                     if (!names.add(name)) {
                         throw new IllegalArgumentException("Tabela repetida: " + name);
                     }
-                    result.add(new Table(name, keys, enabled.equals("SIM")));
+                    var filters = new ArrayList<Filter>();
+                    for (int j = 0; j < FILTER_SUFFIXES.size(); j++) {
+                        String suffix = FILTER_SUFFIXES.get(j);
+                        String column = optionalCell(row, headers, "coluna_" + suffix);
+                        String value = filterCell(row, headers, "valor_" + suffix);
+                        if (column.isBlank() && value.isBlank()) {
+                            continue;
+                        }
+                        if (column.isBlank() || value.isBlank()) {
+                            throw new IllegalArgumentException(
+                                    "Preencha coluna_" + suffix + " e valor_" + suffix + " juntos.");
+                        }
+                        filters.add(new Filter(identifier(column), FILTER_OPERATORS.get(j), value));
+                    }
+                    String guardText = optionalCell(row, headers, GUARD_COLUMN);
+                    List<String> guards = guardText.isBlank() ? List.of()
+                            : Arrays.stream(guardText.split(",", -1)).map(Config::identifier).toList();
+                    if (new HashSet<>(guards).size() != guards.size()) {
+                        throw new IllegalArgumentException("Há nomes repetidos em " + GUARD_COLUMN + ".");
+                    }
+                    result.add(new Table(name, keys, enabled.equals("SIM"), List.copyOf(filters), guards));
                 } catch (IllegalArgumentException error) {
                     throw new IllegalArgumentException("Planilha, linha " + (i + 1) + ": "
                             + error.getMessage(), error);
@@ -132,6 +160,24 @@ record Config(Endpoint source, Endpoint target, List<Table> tables, Path output,
             }
             return List.copyOf(result);
         }
+    }
+
+    private static String optionalCell(Row row, HashMap<String, Integer> headers, String name) {
+        Integer index = headers.get(name);
+        return index == null ? "" : cellText(row.getCell(index));
+    }
+
+    private static String filterCell(Row row, HashMap<String, Integer> headers, String name) {
+        Integer index = headers.get(name);
+        Cell cell = index == null ? null : row.getCell(index);
+        if (cell == null || cell.getCellType() == CellType.BLANK || cell.getCellType() == CellType.STRING) {
+            return cellText(cell);
+        }
+        if (cell instanceof XSSFCell xlsxCell && cell.getCellType() == CellType.NUMERIC
+                && !DateUtil.isCellDateFormatted(cell)) {
+            return xlsxCell.getRawValue();
+        }
+        throw new IllegalArgumentException("Preencha " + name + " com um número ou texto, sem fórmula.");
     }
 
     private static boolean isBlank(Row row) {

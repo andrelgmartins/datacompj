@@ -40,11 +40,43 @@ Se o ambiente exigir `"oracle_mode": "thick"`, instale as bibliotecas OCI para L
 
 ## Saída
 
-- `SUMARIO.csv` contém os horários de início e término, duração, contagens e status por tabela.
+Cada execução usa a mesma data e hora local no nome da pasta e no sufixo `DATA` dos arquivos, por exemplo `2026-11-27_15h27m30s_000000`. Os seis últimos dígitos representam os microssegundos.
+
+- `SUMARIO__DATA.csv` contém os horários de início e término, duração, contagens e status por tabela.
+- `SUMARIO__DATA.txt` contém os mesmos campos, em formato de texto.
 - `TABELA__LOG__DATA.csv` identifica todas as chaves da tabela e indica `INSERT`, `UPDATE`, `SEM_ALTERACAO` ou `SOMENTE_NO_DESTINO`. Para updates, registra as colunas diferentes.
 - Os arquivos `TABELA__INSERT__DATA.SQL` e `TABELA__UPDATE__DATA.SQL` só são criados quando há DML para aquela operação. Com `commit_every_rows: 0`, o arquivo sai sem commits. Um intervalo positivo se aplica a cada arquivo e inclui o lote restante.
 - Os scripts usam nomes de esquemas, tabelas e colunas sem aspas. Cada update é emitido como SQL direto. Quando é necessário montar um CLOB com conteúdo, o comando fica dentro de um bloco PL/SQL.
 - A tabela do destino é indexada em memória. Os CLOBs são comparados pelo conteúdo e preservam a distinção entre vazio e nulo. O volume dos CLOBs e a largura das linhas influenciam o uso de memória nas maiores tabelas.
+
+
+### Condições do UPDATE
+
+As colunas abaixo são opcionais na aba `Tabelas`. Planilhas anteriores continuam funcionando.
+
+| Colunas da planilha | Condição no destino |
+|---|---|
+| `coluna_maior`, `valor_maior` | `COLUNA > valor` |
+| `coluna_menor`, `valor_menor` | `COLUNA < valor` |
+| `coluna_igual`, `valor_igual` | `COLUNA = valor` |
+| `colunas_conferir_destino` | Igualdade com o valor lido no destino, para cada coluna da lista. |
+
+Preencha ou deixe em branco os dois campos de cada par. Os campos `valor_*` aceitam números do Excel e texto, sem aspas de SQL nem fórmulas. Use texto quando precisar preservar zeros à esquerda, números com muitos dígitos ou datas. Para números digitados como texto, use ponto decimal. Para datas, use formato ISO, como `2026-11-27` ou `2026-11-27 14:30:00`. Para `TIMESTAMP`, é possível incluir até nove casas decimais nos segundos. `CLOB`, `RAW` e `BOOLEAN` aceitam apenas igualdade. Use hexadecimal para `RAW` e `TRUE` ou `FALSE` para `BOOLEAN`.
+
+Na lista de conferência, separe os nomes com vírgula. Por exemplo, `STATUS, VERSAO` inclui `AND STATUS = ('PENDENTE') AND VERSAO = (7)` se esses forem os valores lidos no destino. Um valor anterior nulo produz `IS NULL`. É possível indicar colunas que só existem no destino.
+
+As condições são combinadas com `AND` depois da chave. Elas valem na aplicação do `UPDATE`; não filtram a leitura nem os `INSERT`s. Se uma condição não for satisfeita, aquele comando pode afetar zero linhas.
+
+### Legenda do log por tabela
+
+| `resultado` | Significado |
+|---|---|
+| `INSERT` | A chave só existia na origem e gerou um `INSERT`. |
+| `UPDATE` | A chave existia nos dois lados e gerou um `UPDATE`. A coluna `colunas_alteradas` lista os campos incluídos no `SET`. |
+| `SEM_ALTERACAO` | A chave existia nos dois lados e os valores comparados eram iguais. |
+| `SOMENTE_NO_DESTINO` | A chave só existia no destino. |
+
+O log e o sumário registram a geração dos arquivos. A contagem de `updates_gerados` inclui os comandos com condições adicionais, mesmo que depois algum deles afete zero linhas. No sumário TXT, cada tabela tem um grupo com um campo por linha.
 
 ## Aplicar os scripts
 

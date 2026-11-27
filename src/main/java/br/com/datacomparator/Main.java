@@ -2,13 +2,14 @@ package br.com.datacomparator;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 public final class Main {
     private static final DateTimeFormatter RUN_ID =
-            DateTimeFormatter.ofPattern("uuuuMMdd_HHmmss_SSSSSS", Locale.ROOT);
+            DateTimeFormatter.ofPattern("uuuu-MM-dd_HH'h'mm'm'ss's'_SSSSSS", Locale.ROOT);
     private static final String USAGE =
             "Uso: java -jar target/data-comparator-0.1.0.jar --config config/conexoes.json";
 
@@ -51,14 +52,17 @@ public final class Main {
             System.out.println("Saída: " + directory.toAbsolutePath().normalize());
             var comparator = new TableComparator(config, source, target);
             boolean failed = false;
-            try (var report = new Csv(directory.resolve("SUMARIO.csv"))) {
+            try (var report = new Csv(directory.resolve("SUMARIO__" + runId + ".csv"));
+                 var text = Files.newBufferedWriter(directory.resolve("SUMARIO__" + runId + ".txt"),
+                         StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
                 TableComparator.Summary.writeHeader(report);
                 for (int i = 0; i < config.tables().size(); i++) {
                     var table = config.tables().get(i);
                     System.out.printf("[%d/%d] %s%n", i + 1, config.tables().size(), table.name());
                     var result = comparator.generate(table, directory, runId);
-                    result.writeTo(report);
+                    result.writeTo(report, text);
                     report.flush();
+                    text.flush();
                     System.out.printf("  %s | INSERT: %d | UPDATE: %d%n",
                             result.status, result.inserts, result.updates);
                     if (!result.error.isEmpty()) {

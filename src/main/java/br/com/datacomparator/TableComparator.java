@@ -1,5 +1,6 @@
 package br.com.datacomparator;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -32,6 +33,10 @@ final class TableComparator {
     }
 
     static final class Summary {
+        private static final List<String> FIELDS = List.of(
+                "tabela", "inicio", "termino", "duracao_segundos", "status", "lidas_origem",
+                "lidas_destino", "comparadas", "inserts_gerados", "updates_gerados",
+                "sem_alteracao", "somente_no_destino", "erro");
         private final String table;
         private String start = "";
         private String end = "";
@@ -51,14 +56,19 @@ final class TableComparator {
         }
 
         static void writeHeader(Csv csv) throws IOException {
-            csv.row("tabela", "inicio", "termino", "duracao_segundos", "status", "lidas_origem",
-                    "lidas_destino", "comparadas", "inserts_gerados", "updates_gerados",
-                    "sem_alteracao", "somente_no_destino", "erro");
+            csv.row(FIELDS.toArray());
         }
 
-        void writeTo(Csv csv) throws IOException {
-            csv.row(table, start, end, seconds, status, sourceRows, targetRows, matched,
+        void writeTo(Csv csv, BufferedWriter text) throws IOException {
+            var values = List.of(table, start, end, seconds, status, sourceRows, targetRows, matched,
                     inserts, updates, unchanged, targetOnly, error);
+            csv.row(values.toArray());
+            text.write("[" + table + "]\n");
+            for (int i = 1; i < FIELDS.size(); i++) {
+                String value = values.get(i).toString().replaceAll("\\R", " ");
+                text.write(FIELDS.get(i) + ": " + value + "\n");
+            }
+            text.write("\n");
         }
     }
 
@@ -119,6 +129,20 @@ final class TableComparator {
         var sourceColumns = Oracle.columns(source, config.source().schema(), table.name());
         var targetColumns = Oracle.columns(target, config.target().schema(), table.name());
         var columns = Oracle.validateColumns(sourceColumns, targetColumns, table.keys());
+        var fixedCriteria = new ArrayList<SqlScript.Condition>();
+        for (var filter : table.filters()) {
+            var column = conditionColumn(targetColumns, filter.column());
+            var value = SqlScript.filterValue(column, filter.operator(), filter.value());
+            fixedCriteria.add(new SqlScript.Condition(column, filter.operator(), value));
+        }
+        var guardColumns = table.guards().stream().map(name -> conditionColumn(targetColumns, name)).toList();
+        var targetProjection = new ArrayList<>(columns);
+        for (var column : guardColumns) {
+            if (!sourceColumns.containsKey(column.name())) {
+                targetProjection.add(column);
+            }
+        }
+        var guardIndexes = guardColumns.stream().map(targetProjection::indexOf).toList();
         var names = columns.stream().map(Oracle.Column::name).toList();
         var keyIndexes = table.keys().stream().map(names::indexOf).toList();
         var valueIndexes = new ArrayList<Integer>();
@@ -129,7 +153,7 @@ final class TableComparator {
         }
 
         var targetRows = new LinkedHashMap<List<Object>, Object[]>();
-        Oracle.readRows(target, config.target().schema(), table.name(), columns, config.batchSize(), row -> {
+        Oracle.readRows(target, config.target().schema(), table.name(), targetProjection, config.batchSize(), row -> {
             summary.targetRows++;
             var identity = key(row, keyIndexes);
             if (targetRows.putIfAbsent(identity, row) != null) {
@@ -168,8 +192,16 @@ final class TableComparator {
                     summary.unchanged++;
                     log.row("SEM_ALTERACAO", id, "");
                 } else {
-                    var criteria = keyIndexes.stream()
-                            .map(index -> new SqlScript.Field(columns.get(index), before[index])).toList();
+                    var criteria = new ArrayList<SqlScript.Condition>();
+                    for (int index : keyIndexes) {
+                        criteria.add(new SqlScript.Condition(columns.get(index), "=", before[index]));
+                    }
+                    criteria.addAll(fixedCriteria);
+                    for (int index : guardIndexes) {
+                        if (!keyIndexes.contains(index)) {
+                            criteria.add(new SqlScript.Condition(targetProjection.get(index), "=", before[index]));
+                        }
+                    }
                     updates.write(qualifiedTable, changes, criteria);
                     String changedColumns = changes.stream().map(field -> field.column().name())
                             .collect(Collectors.joining(","));
@@ -185,6 +217,17 @@ final class TableComparator {
             updates.finish();
             return new Counts(inserts.count(), updates.count());
         }
+    }
+
+    private static Oracle.Column conditionColumn(Map<String, Oracle.Column> target, String name) {
+        var column = target.get(name);
+        if (column == null) {
+            throw new IllegalArgumentException("Coluna de condição ausente no destino: " + name);
+        }
+        if (!Config.isUnquotedIdentifier(column.name()) || !Oracle.SUPPORTED_TYPES.contains(column.type())) {
+            throw new IllegalArgumentException("Coluna de condição incompatível: " + name + " (" + column.type() + ").");
+        }
+        return column;
     }
 
     private static List<Object> key(Object[] row, List<Integer> indexes) {

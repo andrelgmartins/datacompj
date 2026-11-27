@@ -18,14 +18,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 final class Oracle {
-    static final String DATE_FORMAT = "SYYYY-MM-DD HH24:MI:SS";
+    static final String DATE_FORMAT = "YYYY-MM-DD HH24:MI:SS";
     static final String TIMESTAMP_FORMAT = DATE_FORMAT + ".FF9";
     static final List<String> SESSION_SETTINGS = List.of(
             "ALTER SESSION SET NLS_CALENDAR = 'GREGORIAN'",
             "ALTER SESSION SET NLS_COMP = 'BINARY'",
             "ALTER SESSION SET NLS_SORT = 'BINARY'");
     private static final Set<String> CHARACTER_TYPES = Set.of("CHAR", "VARCHAR2", "NCHAR", "NVARCHAR2");
-    private static final Set<String> SUPPORTED_TYPES = Set.of(
+    static final Set<String> SUPPORTED_TYPES = Set.of(
             "CHAR", "VARCHAR2", "NCHAR", "NVARCHAR2", "NUMBER", "FLOAT",
             "BINARY_FLOAT", "BINARY_DOUBLE", "DATE", "TIMESTAMP", "RAW", "CLOB", "BOOLEAN");
 
